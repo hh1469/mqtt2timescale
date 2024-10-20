@@ -51,7 +51,7 @@
       devShells.default = pkgs.mkShell {
         buildInputs = with pkgs; [rust];
         shellHook = ''
-          test -e ./env.sh && . ./env.sh
+          test -f ./env.sh && . ./env.sh
         '';
       };
     });
