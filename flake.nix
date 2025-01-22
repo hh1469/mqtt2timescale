@@ -55,6 +55,7 @@
         formatter = nixpkgs.legacyPackages.${system}.nixfmt-rfc-style;
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
+            cargo-edit
             rust
           ];
           shellHook = ''
