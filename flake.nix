@@ -56,6 +56,7 @@
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             cargo-edit
+            mqttui
             rust
           ];
           shellHook = ''
