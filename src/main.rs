@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::anyhow;
-use chrono::{TimeZone, Utc};
+use chrono::{DateTime, Utc};
 use clap::Parser;
 use postgres::Transaction;
 use rumqttc::{Client, ConnAck, ConnectReturnCode, Event, MqttOptions, Packet, Publish};
@@ -22,13 +22,12 @@ impl FromStr for MqttCredentials {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let token: Vec<&str> = s.splitn(2, ":").collect();
-        if token.len() != 2 {
-            return Err("credentials must be passed in format 'username:password'".to_string());
-        }
+        let (username, password) = s.split_once(':').ok_or_else(|| {
+            "credentials must be passed in format 'username:password'".to_string()
+        })?;
         Ok(MqttCredentials {
-            username: token[0].to_string(),
-            password: token[1].to_string(),
+            username: username.to_string(),
+            password: password.to_string(),
         })
     }
 }
@@ -67,19 +66,9 @@ struct Payload {
 }
 
 fn make_timestamp(time: &str) -> anyhow::Result<SystemTime> {
-    let timestamp = match Utc.timestamp_opt(0, 0) {
-        chrono::offset::LocalResult::Single(t) => t,
-        chrono::offset::LocalResult::Ambiguous(t1, t2) => {
-            anyhow::bail!("Ambiguous local time, ranging from {:?} to {:?}", t1, t2)
-        }
-        chrono::offset::LocalResult::None => anyhow::bail!("no such local time"),
-    };
-    let time = chrono::DateTime::parse_from_rfc3339(time)?
+    Ok(DateTime::parse_from_rfc3339(time)?
         .with_timezone(&Utc)
-        .signed_duration_since(timestamp)
-        .to_std()?;
-
-    Ok(SystemTime::UNIX_EPOCH + time)
+        .into())
 }
 
 fn insert<T>(
@@ -92,16 +81,12 @@ fn insert<T>(
 where
     T: std::marker::Sync + postgres::types::ToSql,
 {
-    let rc = t.execute(
-        format!(
-            "INSERT INTO {} (time, sensor_id, value) values ($1, $2, $3)",
-            table
-        )
-        .as_str(),
-        &[&timestamp, &sensor_id, &value],
-    )?;
+    let query = format!(
+        "INSERT INTO {} (time, sensor_id, value) values ($1, $2, $3)",
+        table
+    );
 
-    Ok(rc)
+    Ok(t.execute(&query, &[&timestamp, &sensor_id, &value])?)
 }
 
 fn insert_last_seen(
