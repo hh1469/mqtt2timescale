@@ -1,37 +1,34 @@
 {
-  description = "Hello rust flake";
+  description = "Stores events from MQTT in postgres database";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
-    rust-overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url = "github:numtide/flake-utils";
+    treefmt-nix.url = "github:numtide/treefmt-nix";
   };
 
   outputs =
     {
       self,
-      flake-utils,
       nixpkgs,
-      rust-overlay,
-    }:
-    flake-utils.lib.eachDefaultSystem (
+      ...
+    }@inputs:
+    inputs.flake-utils.lib.eachDefaultSystem (
       system:
       let
-        overlays = [ (import rust-overlay) ];
-        pkgs = import nixpkgs { inherit system overlays; };
-        rust = pkgs.rust-bin.stable.latest.default.override {
-          extensions = [ "rust-src" ];
-        };
-        rustPlatform = pkgs.makeRustPlatform {
-          rustc = rust;
-          cargo = rust;
-        };
+        pkgs = import nixpkgs { inherit system; };
       in
       {
+        formatter = inputs.treefmt-nix.lib.mkWrapper nixpkgs.legacyPackages.${system} {
+          projectRootFile = "flake.nix";
+          programs = {
+            nixpkgs-fmt.enable = true;
+          };
+        };
         packages = rec {
-          mqtt2timescale = rustPlatform.buildRustPackage rec {
+          mqtt2timescale = pkgs.rustPlatform.buildRustPackage rec {
             pname = "mqtt2timescale";
-            version = "0.1.0";
+            version = "0.2.0";
 
             src = ./.;
             cargoLock = {
@@ -46,18 +43,18 @@
           default = mqtt2timescale;
         };
         apps = rec {
-          ip = flake-utils.lib.mkApp {
+          ip = inputs.flake-utils.lib.mkApp {
             drv = self.packages.${system}.mqtt2timescale;
             exePath = "/bin/mqtt2timescale";
           };
           default = ip;
         };
-        formatter = nixpkgs.legacyPackages.${system}.nixfmt-rfc-style;
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             cargo-edit
             mqttui
-            rust
+            rustc
+            cargo
           ];
           shellHook = ''
             test -f ./env.sh && . ./env.sh
