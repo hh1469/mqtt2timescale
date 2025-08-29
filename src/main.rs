@@ -1,5 +1,6 @@
 use core::str;
 use std::{
+    io::BufRead,
     str::FromStr,
     sync::mpsc::{self, Receiver, Sender},
     thread::{self, JoinHandle},
@@ -46,6 +47,8 @@ struct Cli {
     mqtt_port: u16,
     #[arg(env = "MQTT2TIMESCALE_MQTT_CREDENTIALS")]
     mqtt_credentials: Option<MqttCredentials>,
+    #[arg(short, long)]
+    sensor_names: Option<String>,
 }
 
 #[derive(Debug)]
@@ -65,6 +68,20 @@ struct Payload {
     pressure: Option<f64>,
     temperature: Option<f64>,
     voltage: Option<i32>,
+}
+
+fn insert_sensor_names(filename: &str, pg: &mut postgres::Client) -> anyhow::Result<()> {
+    let f = std::fs::File::open(filename)?;
+    let reader = std::io::BufReader::new(f);
+
+    for line in reader.lines() {
+        let line = line?;
+        pg.execute(
+            "INSERT INTO SENSOR (sensor_name) values ($1) ON CONFLICT DO NOTHING",
+            &[&line],
+        )?;
+    }
+    Ok(())
 }
 
 fn make_timestamp(time: &str) -> anyhow::Result<SystemTime> {
@@ -209,6 +226,10 @@ fn main() -> Result<(), anyhow::Error> {
     // database migration
     let mut postgres = postgres::Client::connect(&cli.database, postgres::NoTls)?;
     migrations::runner().run(&mut postgres)?;
+
+    if let Some(s) = cli.sensor_names {
+        return Ok(insert_sensor_names(&s, &mut postgres)?);
+    }
 
     // connect to mqtt
     let mut options = MqttOptions::new(cli.mqtt_id, cli.mqtt_host, cli.mqtt_port);
