@@ -18,6 +18,8 @@ struct MqttCredentials {
     password: String,
 }
 
+refinery::embed_migrations!("migrations");
+
 impl FromStr for MqttCredentials {
     type Err = String;
 
@@ -204,8 +206,11 @@ fn main() -> Result<(), anyhow::Error> {
 
     let cli = Cli::parse();
 
-    let (tx, rx): (Sender<Message>, Receiver<Message>) = mpsc::channel();
+    // database migration
+    let mut postgres = postgres::Client::connect(&cli.database, postgres::NoTls)?;
+    migrations::runner().run(&mut postgres)?;
 
+    // connect to mqtt
     let mut options = MqttOptions::new(cli.mqtt_id, cli.mqtt_host, cli.mqtt_port);
     options.set_keep_alive(std::time::Duration::from_secs(5));
     options.set_max_packet_size(1024 * 1024, 1024 * 1024);
@@ -216,6 +221,8 @@ fn main() -> Result<(), anyhow::Error> {
 
     let (client, mut connection) = Client::new(options, 10);
     client.subscribe("#", rumqttc::QoS::AtMostOnce)?;
+
+    let (tx, rx): (Sender<Message>, Receiver<Message>) = mpsc::channel();
 
     let sender: JoinHandle<anyhow::Result<()>> = thread::spawn(move || {
         for notification in connection.iter() {
@@ -243,8 +250,6 @@ fn main() -> Result<(), anyhow::Error> {
 
         Ok(())
     });
-
-    let mut postgres = postgres::Client::connect(&cli.database, postgres::NoTls)?;
 
     let receiver: JoinHandle<anyhow::Result<()>> = thread::spawn(move || loop {
         let data = rx.recv()?;
