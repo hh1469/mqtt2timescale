@@ -94,8 +94,8 @@
                   Restart = "always";
                   RestartSec = 5;
                 }
-                // optionalAttrs (cfg.environmentFile != null) {
-                  EnvironmentFile = cfg.environmentFile;
+                // optionalAttrs (config.services.mqtt2timescale.environmentFile != null) {
+                  EnvironmentFile = config.services.mqtt2timescale.environmentFile;
                 };
               };
             };
