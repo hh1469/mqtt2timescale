@@ -73,12 +73,13 @@
           {
             options.services.mqtt2timescale = {
               enable = mkEnableOption "enable mqtt2timescale";
-            };
 
-            environmentFile = mkOption {
-              type = types.nullOr types.path;
-              default = null;
-              description = ''EnvironmentFile to define variables for mqtt2timescale '';
+              environmentFile = mkOption {
+                type = types.nullOr types.path;
+                default = null;
+                description = ''EnvironmentFile to define variables for mqtt2timescale '';
+              };
+
             };
 
             config = mkIf config.services.mqtt2timescale.enable {
