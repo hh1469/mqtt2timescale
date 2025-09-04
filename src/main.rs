@@ -68,6 +68,7 @@ struct Payload {
     pressure: Option<f64>,
     temperature: Option<f64>,
     voltage: Option<i32>,
+    water_leak: Option<bool>,
 }
 
 fn insert_sensor_names(filename: &str, pg: &mut postgres::Client) -> anyhow::Result<()> {
@@ -211,6 +212,10 @@ fn handle_message(mut t: Transaction, data: Message) -> anyhow::Result<()> {
 
     if let Some(voltage) = payload.voltage {
         insert(&mut t, "voltage", &now, sensor_id, voltage)?;
+    }
+
+    if let Some(water_leak) = payload.water_leak {
+        insert(&mut t, "water_leak", &now, sensor_id, water_leak)?;
     }
 
     t.commit()?;
